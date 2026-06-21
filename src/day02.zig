@@ -110,9 +110,27 @@ fn part1(gpa: Allocator, content: []u8) !void {
     std.debug.print("id sum: {}\n", .{sum});
 }
 
-fn part2(content: []u8) !void {
-    _ = content;
-    unreachable();
+fn part2(gpa: Allocator, content: []u8) !void {
+    var games = try read_games(gpa, content);
+    defer free_games(gpa, &games);
+
+    var sum: usize = 0;
+
+    for (games.items) |game| {
+        var min_cube_set: CubeSet = .{ .red = 0, .green = 0, .blue = 0 };
+        for (game.cube_sets.items) |set| {
+            min_cube_set.red = @max(min_cube_set.red, set.red);
+            min_cube_set.blue = @max(min_cube_set.blue, set.blue);
+            min_cube_set.green = @max(min_cube_set.green, set.green);
+        }
+
+        const power = min_cube_set.red * min_cube_set.blue * min_cube_set.green;
+        sum += power;
+
+        std.debug.print("power of game {}: {}\n", .{game.id, power});
+    }
+
+    std.debug.print("power sum: {}\n", .{sum});
 }
 
 pub fn main() !void {
@@ -126,6 +144,6 @@ pub fn main() !void {
     if (utils.is_part1()) {
         try part1(gpa, content);
     } else {
-        try part2(content);
+        try part2(gpa, content);
     }
 }
