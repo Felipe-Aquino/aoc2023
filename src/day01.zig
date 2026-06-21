@@ -1,13 +1,5 @@
 const std = @import("std");
-
-fn read_file(gpa: std.mem.Allocator, path: []const u8) ![]u8 {
-    const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
-    return std.fs.cwd().readFileAlloc(gpa, path, MAX_FILE_SIZE);
-}
-
-fn is_part1() bool {
-    return std.os.argv.len < 2 or !std.mem.eql(u8, std.mem.span(std.os.argv[1]), "2");
-}
+const utils = @import("utils.zig");
 
 fn part1(content: []u8) !void {
     var iter = std.mem.splitSequence(u8, content, "\n");
@@ -87,10 +79,10 @@ pub fn main() !void {
     const file_path = "./inputs/day01.txt";
 
     const gpa = std.heap.page_allocator;
-    const content = try read_file(gpa, file_path);
+    const content = try utils.read_file(gpa, file_path);
     defer gpa.free(content);
 
-    if (is_part1()) {
+    if (utils.is_part1()) {
         try part1(content);
     } else {
         try part2(content);
