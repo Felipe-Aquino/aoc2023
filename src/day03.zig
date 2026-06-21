@@ -50,6 +50,82 @@ fn look_around_for_symbols(grid: std.ArrayList([]const u8), i: usize, j: usize) 
     return false;
 }
 
+const NumberLookIter = struct {
+    grid: std.ArrayList([]const u8),
+    i: isize,
+    j: isize,
+
+    pos_index: usize,
+
+    fn build(grid: std.ArrayList([]const u8), i: usize, j: usize) NumberLookIter {
+        return NumberLookIter {
+            .grid = grid,
+            .i = as_isize(i),
+            .j = as_isize(j),
+            .pos_index = 0,
+        };
+    }
+
+    fn next(self: *NumberLookIter) ?struct { usize, usize } {
+        const positions: [8]struct { isize, isize } = .{
+            .{-1, -1}, .{ -1, 0 }, .{ -1, 1 },
+            .{0, -1}, .{ 0, 1 },
+            .{1, -1}, .{ 1, 0 }, .{ 1, 1 }
+        };
+
+        const lines_count = as_isize(self.grid.items.len);
+
+        for (self.pos_index..8) |idx| {
+            const ni = self.i + positions[idx][0];
+            const nj = self.j + positions[idx][1];
+
+            if (ni >= 0 and ni < lines_count) {
+                const line = self.grid.items[as_usize(ni)];
+
+                if (nj > 0 and nj < line.len) {
+                    const c = line[as_usize(nj)];
+                    if (is_digit(c)) {
+                        self.pos_index = idx + 1;
+                        return .{ as_usize(ni), as_usize(nj) };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+};
+
+fn intercept_number(grid: std.ArrayList([]const u8), i: usize, j: usize) struct { usize, usize, usize } {
+    const line = grid.items[i];
+    var start = j;
+
+    while (start > 0) {
+        start -= 1;
+
+        const c = line[start];
+        if (!is_digit(c)) {
+            start += 1;
+            break;
+        }
+    }
+
+    var number: usize = 0;
+    var k = start;
+
+    while (k < line.len) {
+        const c = line[k];
+        if (!is_digit(c)) {
+            break;
+        }
+
+        number = 10 * number + to_digit(c);
+        k += 1;
+    }
+
+    return .{ i, start, number };
+}
+
 fn part1(gpa: Allocator, content: []u8) !void {
     var grid: std.ArrayList([]const u8) = .empty;
 
@@ -103,9 +179,67 @@ fn part1(gpa: Allocator, content: []u8) !void {
 }
 
 fn part2(gpa: Allocator, content: []u8) !void {
-    _ = gpa;
-    _ = content;
-    unreachable();
+    var grid: std.ArrayList([]const u8) = .empty;
+
+    var sum: usize = 0;
+
+    {
+        var iter = std.mem.splitSequence(u8, content, "\n");
+
+        while (iter.next()) |line| {
+            if (line.len > 0) {
+                try grid.append(gpa, line);
+            }
+        }
+    }
+
+    for (grid.items, 0..) |line, i| {
+        for (line, 0..) |c, j| {
+            if (c == '*') {
+                var n1: struct { usize, usize, usize } = .{ 0, 0, 0 };
+                var n2: struct { usize, usize, usize } = .{ 0, 0, 0 };
+                var count: usize = 0;
+
+                var iter = NumberLookIter.build(grid, i, j);
+
+                std.debug.print("({}, {})\n", .{i, j});
+
+                // Finding digits near the gear and identifying the numbers
+                while (iter.next()) |pos| {
+                    // Reading a number near the gear (line, col, value)
+                    const x = intercept_number(grid, pos[0], pos[1]);
+                    // std.debug.print("pos = {} - {}\n", .{pos, x});
+
+                    if (count == 0) {
+                        n1 = x;
+                        count += 1;
+                    } else if (count == 1) {
+                        // Check if it is a repeated number
+                        if (n1[0] != x[0] or n1[1] != x[1]) {
+                            n2 = x;
+                            count += 1;
+                        }
+                    } else {
+                        if (
+                            (n1[0] != x[0] or n1[1] != x[1]) and
+                            (n2[0] != x[0] or n2[1] != x[1])
+                        ) {
+                            count += 1;
+                            break;
+                        }
+                    }
+                }
+
+                // std.debug.print("n1 = {}; n2 = {}\n", .{n1, n2});
+                if (count == 2) {
+                    std.debug.print("n1 = {}; n2 = {}\n", .{n1[2], n2[2]});
+                    sum += n1[2] * n2[2];
+                }
+            }
+        }
+    }
+
+    std.debug.print("sum = {}\n", .{sum});
 }
 
 pub fn main() !void {
