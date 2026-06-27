@@ -73,10 +73,69 @@ fn part1(gpa: Allocator, content: []const u8) !void {
     std.debug.print("number of ways = {}\n", .{ number_of_ways });
 }
 
+fn power_of_10(n: usize) f64 {
+    var result: f64 = 1.0;
+    for (0..n) |_| {
+        result *= 10.0;
+    }
+    return result;
+}
+
 fn part2(gpa: Allocator, content: []const u8) !void {
     _ = gpa;
-    _ = content;
-    unreachable();
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    const time_line = std.mem.trimStart(u8, iter.next().?, "Time:");
+    const dist_line = std.mem.trimStart(u8, iter.next().?, "Distance:");
+
+    var times_iter = std.mem.splitSequence(u8, time_line, " ");
+    var dists_iter = std.mem.splitSequence(u8, dist_line, " ");
+
+    var record: Record = . { .time = 0, .distance = 0 };
+
+    while (times_iter.next()) |time_str| {
+        if (time_str.len == 0) continue;
+
+        while (dists_iter.next()) |dist_str| {
+            if (dist_str.len == 0) continue;
+
+            const time = try std.fmt.parseFloat(f64, time_str);
+            const dist = try std.fmt.parseFloat(f64, dist_str);
+
+            record.time = record.time * power_of_10(time_str.len) + time;
+            record.distance = record.distance * power_of_10(dist_str.len) + dist;
+            break;
+        }
+    }
+
+    std.debug.print("record = {}\n", .{ record });
+
+    // -t**2 + record.time*t - record.distance = 0
+    var low_time = @ceil(
+        (record.time - @sqrt(record.time * record.time - 4 * record.distance)) / 2.0
+    );
+
+    const low_dist = low_time * (record.time - low_time);
+    if (low_dist == record.distance) {
+        low_time += 1;
+    }
+
+    // -2*t + record.time = 0
+    // t = record.time / 2
+    const peak_time = @floor(record.time / 2.0);
+
+    const diff = peak_time - low_time;
+    const number_of_ways =
+        if (@rem(record.time, 2.0) == 0.0)
+            2 * diff + 1
+        else
+            2 * (diff + 1);
+
+    // std.debug.print("low_time = {}\n", .{ low_time });
+    // std.debug.print("peak_time = {}\n", .{ peak_time });
+
+    std.debug.print("number of ways = {}\n", .{ number_of_ways });
 }
 
 pub fn main() !void {
