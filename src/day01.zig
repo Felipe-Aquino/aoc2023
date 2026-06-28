@@ -1,7 +1,11 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 
-fn part1(content: []u8) !void {
+const Allocator = std.mem.Allocator;
+
+pub fn part1(gpa: Allocator, content: []u8) !void {
+    _ = gpa;
+
     var iter = std.mem.splitSequence(u8, content, "\n");
 
     var sum: usize = 0;
@@ -53,7 +57,9 @@ fn find_first_number(line: []const u8, reverse: bool) usize {
     return value;
 }
 
-fn part2(content: []u8) !void {
+pub fn part2(gpa: Allocator, content: []u8) !void {
+    _ = gpa;
+
     var iter = std.mem.splitSequence(u8, content, "\n");
 
     var sum: usize = 0;
@@ -71,20 +77,4 @@ fn part2(content: []u8) !void {
     }
 
     std.debug.print("sum = {}\n", .{sum});
-}
-
-pub fn main() !void {
-    // const file_path = "./inputs/day01-example.txt";
-    // const file_path = "./inputs/day01-example2.txt";
-    const file_path = "./inputs/day01.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(content);
-    } else {
-        try part2(content);
-    }
 }

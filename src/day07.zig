@@ -161,26 +161,10 @@ fn solve(gpa: Allocator, content: []const u8, j_is_wild: bool) !void {
     std.debug.print("total winnings = {}\n", .{total_winnings});
 }
 
-fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn part1(gpa: Allocator, content: []const u8) !void {
     try solve(gpa, content, false);
 }
 
-fn part2(gpa: Allocator, content: []const u8) !void {
+pub fn part2(gpa: Allocator, content: []const u8) !void {
     try solve(gpa, content, true);
 }
-
-pub fn main() !void {
-    // const file_path = "./inputs/day07-example.txt";
-    const file_path = "./inputs/day07.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
-}
-

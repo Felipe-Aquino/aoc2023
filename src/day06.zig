@@ -8,7 +8,7 @@ const Record = struct {
     distance: f64,
 };
 
-fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn part1(gpa: Allocator, content: []const u8) !void {
     var records: std.ArrayList(Record) = .empty;
     defer records.deinit(gpa);
 
@@ -81,7 +81,7 @@ fn power_of_10(n: usize) f64 {
     return result;
 }
 
-fn part2(gpa: Allocator, content: []const u8) !void {
+pub fn part2(gpa: Allocator, content: []const u8) !void {
     _ = gpa;
 
     var iter = std.mem.splitSequence(u8, content, "\n");
@@ -136,19 +136,4 @@ fn part2(gpa: Allocator, content: []const u8) !void {
     // std.debug.print("peak_time = {}\n", .{ peak_time });
 
     std.debug.print("number of ways = {}\n", .{ number_of_ways });
-}
-
-pub fn main() !void {
-    // const file_path = "./inputs/day06-example.txt";
-    const file_path = "./inputs/day06.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
 }

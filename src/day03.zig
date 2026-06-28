@@ -126,7 +126,7 @@ fn intercept_number(grid: std.ArrayList([]const u8), i: usize, j: usize) struct 
     return .{ i, start, number };
 }
 
-fn part1(gpa: Allocator, content: []u8) !void {
+pub fn part1(gpa: Allocator, content: []u8) !void {
     var grid: std.ArrayList([]const u8) = .empty;
 
     var sum: usize = 0;
@@ -178,7 +178,7 @@ fn part1(gpa: Allocator, content: []u8) !void {
     std.debug.print("sum = {}\n", .{sum});
 }
 
-fn part2(gpa: Allocator, content: []u8) !void {
+pub fn part2(gpa: Allocator, content: []u8) !void {
     var grid: std.ArrayList([]const u8) = .empty;
 
     var sum: usize = 0;
@@ -241,19 +241,3 @@ fn part2(gpa: Allocator, content: []u8) !void {
 
     std.debug.print("sum = {}\n", .{sum});
 }
-
-pub fn main() !void {
-    // const file_path = "./inputs/day03-example.txt";
-    const file_path = "./inputs/day03.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
-}
-

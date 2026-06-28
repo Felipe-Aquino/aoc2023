@@ -78,7 +78,7 @@ fn free_games(gpa: Allocator, games: *std.ArrayList(Game)) void {
     games.deinit(gpa);
 }
 
-fn part1(gpa: Allocator, content: []u8) !void {
+pub fn part1(gpa: Allocator, content: []u8) !void {
     var games = try read_games(gpa, content);
     defer free_games(gpa, &games);
 
@@ -110,7 +110,7 @@ fn part1(gpa: Allocator, content: []u8) !void {
     std.debug.print("id sum: {}\n", .{sum});
 }
 
-fn part2(gpa: Allocator, content: []u8) !void {
+pub fn part2(gpa: Allocator, content: []u8) !void {
     var games = try read_games(gpa, content);
     defer free_games(gpa, &games);
 
@@ -131,19 +131,4 @@ fn part2(gpa: Allocator, content: []u8) !void {
     }
 
     std.debug.print("power sum: {}\n", .{sum});
-}
-
-pub fn main() !void {
-    // const file_path = "./inputs/day02-example.txt";
-    const file_path = "./inputs/day02.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
 }

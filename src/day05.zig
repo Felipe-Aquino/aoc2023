@@ -150,7 +150,7 @@ fn apply_maps(maps: []Map, value: usize) usize {
     return value;
 }
 
-fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn part1(gpa: Allocator, content: []const u8) !void {
     var seed_soil_maps: std.ArrayList(Map) = .empty;
     var soil_fertilizer_maps: std.ArrayList(Map) = .empty;
     var fertilizer_water_maps: std.ArrayList(Map) = .empty;
@@ -301,7 +301,7 @@ fn swapLists(a: *std.ArrayList(Range), b: *std.ArrayList(Range)) void {
     b.* = tmp;
 }
 
-fn part2(gpa: Allocator, content: []const u8) !void {
+pub fn part2(gpa: Allocator, content: []const u8) !void {
     var maps_array = [7]std.ArrayList(Map) { .empty, .empty, .empty, .empty, .empty, .empty, .empty };
     var seed_ranges: std.ArrayList(Range) = .empty;
 
@@ -388,19 +388,4 @@ fn part2(gpa: Allocator, content: []const u8) !void {
     }
 
     std.debug.print("min location = {}\n", .{ min_location.? });
-}
-
-pub fn main() !void {
-    // const file_path = "./inputs/day05-example.txt";
-    const file_path = "./inputs/day05.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
 }

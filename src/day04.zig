@@ -3,7 +3,7 @@ const utils = @import("utils.zig");
 
 const Allocator = std.mem.Allocator;
 
-fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn part1(gpa: Allocator, content: []const u8) !void {
     var sum: u64 = 0;
 
     var iter = std.mem.splitSequence(u8, content, "\n");
@@ -72,7 +72,7 @@ const Game = struct {
     amount: usize,
 };
 
-fn part2(gpa: Allocator, content: []const u8) !void {
+pub fn part2(gpa: Allocator, content: []const u8) !void {
     var sum: u64 = 0;
 
     var iter = std.mem.splitSequence(u8, content, "\n");
@@ -148,19 +148,3 @@ fn part2(gpa: Allocator, content: []const u8) !void {
 
     std.debug.print("sum = {}\n", .{sum});
 }
-
-pub fn main() !void {
-    // const file_path = "./inputs/day04-example.txt";
-    const file_path = "./inputs/day04.txt";
-
-    const gpa = std.heap.page_allocator;
-    const content = try utils.read_file(gpa, file_path);
-    defer gpa.free(content);
-
-    if (utils.is_part1()) {
-        try part1(gpa, content);
-    } else {
-        try part2(gpa, content);
-    }
-}
-
