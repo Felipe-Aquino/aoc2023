@@ -202,12 +202,13 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
     var current: std.ArrayList(*Node) = .empty;
     var last_ids: std.ArrayList(usize) = .empty;
+    var periods: std.ArrayList(usize) = .empty;
 
     defer {
         current.deinit(gpa);
         last_ids.deinit(gpa);
+        periods.deinit(gpa);
     }
-
 
     var node_iter = nodes.valueIterator();
 
@@ -215,41 +216,76 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         if (n.*.name[2] == 'A') {
             try current.append(gpa, n.*);
         } else if (n.*.name[2] == 'Z') {
+            std.debug.print("{s}\n", .{ n.*.name });
             try last_ids.append(gpa, n.*.id);
         }
         // std.debug.print("{s} -> {s}, {s}\n", .{ n.name, n.lhs.?.name, n.rhs.?.name });
     }
 
-    var pos: usize = 0;
-    var count: usize = 0;
+    for (0..current.items.len) |i| {
+        var count: usize = 0;
+        var pos: usize = 0;
 
-    while (true) {
-        var done = true;
-        for (current.items) |n| {
-            if (std.mem.indexOfScalar(usize, last_ids.items, n.id) == null) {
-                done = false;
+        while (true) {
+            const inst = instructions[pos];
+
+            const n = current.items[i];
+            if (std.mem.indexOfScalar(usize, last_ids.items, n.id)) |_| {
+                try periods.append(gpa, count);
                 break;
             }
-        }
 
-        if (done) {
-            break;
-        }
-        
-        const inst = instructions[pos];
-
-        for (0..current.items.len) |i| {
-            const n = current.items[i];
             const next = if (inst == 'L') n.lhs.? else n.rhs.?;
 
-            // std.debug.print("{s} -> {s}\n", .{ n.name, next.name });
             current.items[i] = next;
+
+            count += 1;
+            pos = @mod(pos + 1, instructions.len);
         }
-
-        count += 1;
-
-        pos = @mod(pos + 1, instructions.len);
     }
 
-    std.debug.print("total steps = {}\n", .{ count });
+
+    var total_steps: usize = 1;
+
+    for (periods.items) |p| {
+        const gcd = std.math.gcd(total_steps, p);
+        total_steps = p * total_steps / gcd; // mcm - minimum common multiple
+    }
+
+    std.debug.print("total steps = {}\n", .{ total_steps });
+
+    // var pos: usize = 0;
+    // var count: usize = 0;
+
+    // // while (count < 3*instructions.len) {
+    // while (count < 500*instructions.len) {
+    //     // var done = true;
+    //     const inst = instructions[pos];
+
+    //     // for (0..current.items.len) |i| {
+    //     for (1..2) |i| {
+    //         const n = current.items[i];
+    //         // if (done and std.mem.indexOfScalar(usize, last_ids.items, n.id) == null) {
+    //         //     done = false;
+    //         // }
+    //         if (std.mem.indexOfScalar(usize, last_ids.items, n.id)) |_| {
+    //             std.debug.print("{}, {}\n", .{n.id, count});
+    //         }
+
+    //         const next = if (inst == 'L') n.lhs.? else n.rhs.?;
+
+    //         // std.debug.print("{s} -> {s}\n", .{ n.name, next.name });
+    //         current.items[i] = next;
+    //     }
+
+    //     // if (done) {
+    //     //     break;
+    //     // }
+
+    //     count += 1;
+
+    //     pos = @mod(pos + 1, instructions.len);
+    // }
+
+    // std.debug.print("total steps = {}\n", .{ count });
 }
