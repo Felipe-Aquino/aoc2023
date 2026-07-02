@@ -253,39 +253,4 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     }
 
     std.debug.print("total steps = {}\n", .{ total_steps });
-
-    // var pos: usize = 0;
-    // var count: usize = 0;
-
-    // // while (count < 3*instructions.len) {
-    // while (count < 500*instructions.len) {
-    //     // var done = true;
-    //     const inst = instructions[pos];
-
-    //     // for (0..current.items.len) |i| {
-    //     for (1..2) |i| {
-    //         const n = current.items[i];
-    //         // if (done and std.mem.indexOfScalar(usize, last_ids.items, n.id) == null) {
-    //         //     done = false;
-    //         // }
-    //         if (std.mem.indexOfScalar(usize, last_ids.items, n.id)) |_| {
-    //             std.debug.print("{}, {}\n", .{n.id, count});
-    //         }
-
-    //         const next = if (inst == 'L') n.lhs.? else n.rhs.?;
-
-    //         // std.debug.print("{s} -> {s}\n", .{ n.name, next.name });
-    //         current.items[i] = next;
-    //     }
-
-    //     // if (done) {
-    //     //     break;
-    //     // }
-
-    //     count += 1;
-
-    //     pos = @mod(pos + 1, instructions.len);
-    // }
-
-    // std.debug.print("total steps = {}\n", .{ count });
 }
