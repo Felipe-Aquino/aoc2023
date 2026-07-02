@@ -33,7 +33,6 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 
         var all_equal = false;
         var size = values.items.len;
-        // var last: i32 = last_values.getFirst();
 
         while (!all_equal) {
             all_equal = true;
@@ -68,6 +67,61 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 }
 
 pub fn part2(gpa: Allocator, content: []const u8) !void {
-    _ = gpa;
-    _ = content;
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    var values: std.ArrayList(i32) = .empty;
+
+    defer {
+        values.deinit(gpa);
+    }
+
+    var sum: i32 = 0;
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+
+        std.debug.print("| {s}\n", .{line});
+        
+        var iter2 = std.mem.splitSequence(u8, line, " ");
+
+        while (iter2.next()) |value_str| {
+            const value = try std.fmt.parseInt(i32, value_str, 10);
+
+            try values.append(gpa, value);
+        }
+
+        var extrapolated = values.items[0];
+
+        var all_equal = false;
+        var size = values.items.len;
+        var sign: i32 = -1;
+
+        while (!all_equal) {
+            all_equal = true;
+            var x: ?i32 = null;
+            for (0..size - 1) |i| {
+                const diff = values.items[i + 1] - values.items[i];
+                values.items[i] = diff;
+
+                if (x) |v| {
+                    all_equal = all_equal and (v == diff);
+                } else {
+                    x = diff;
+                }
+            }
+
+
+            size -= 1;
+            extrapolated += sign * values.items[0];
+
+            sign = -sign;
+            std.debug.print("| {any}\n", .{values.items[0..size]});
+        }
+
+        sum += extrapolated;
+        std.debug.print("> extrapolated = {}\n", .{extrapolated});
+
+        values.clearRetainingCapacity();
+    }
+
+    std.debug.print("sum of extrapolated = {}\n", .{sum});
 }
