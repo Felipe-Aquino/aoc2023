@@ -128,6 +128,7 @@ fn intercept_number(grid: std.ArrayList([]const u8), i: usize, j: usize) struct 
 
 pub fn part1(gpa: Allocator, content: []u8) !void {
     var grid: std.ArrayList([]const u8) = .empty;
+    defer grid.deinit(gpa);
 
     var sum: usize = 0;
 
@@ -180,6 +181,7 @@ pub fn part1(gpa: Allocator, content: []u8) !void {
 
 pub fn part2(gpa: Allocator, content: []u8) !void {
     var grid: std.ArrayList([]const u8) = .empty;
+    defer grid.deinit(gpa);
 
     var sum: usize = 0;
 
