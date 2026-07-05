@@ -1,6 +1,8 @@
 const std = @import("std");
 
-fn parseAttributes(b: *std.Build) ?struct { []const u8, []const u8, bool } {
+const AocAttributes = struct { []const u8, []const u8, bool, ?[]const u8 };
+
+fn parseAttributes(b: *std.Build) ?AocAttributes {
     const day_opt = b.option([]const u8, "day", "Which day to run: 01, 02, ..., 25");
 
     const day = day_opt orelse {
@@ -14,6 +16,7 @@ fn parseAttributes(b: *std.Build) ?struct { []const u8, []const u8, bool } {
             \\  -Dpart=2         Builds part 2 of the day (default: 1)
             \\  -Dexample=true   Use ./inputs/dayX-example.txt as input
             \\  -Dexample=false  Use ./inputs/dayX.txt as input (default)
+            \\  -Dinput=file.txt
             \\
             \\Example Usage:
             \\  zig build run -Dday=01 -Dpart=2 -Dexample=true
@@ -51,7 +54,13 @@ fn parseAttributes(b: *std.Build) ?struct { []const u8, []const u8, bool } {
         "Whether should run use input file ./inputs/day<day>.txt or ./inputs/day<day>-example.txt"
     ) orelse true;
 
-    return .{ day, part, example };
+    const file_input = b.option(
+        []const u8,
+        "input",
+        "Which file to use as input inside ./inputs directory"
+    );
+
+    return .{ day, part, example, file_input };
 }
 
 pub fn build(b: *std.Build) void {
@@ -61,9 +70,17 @@ pub fn build(b: *std.Build) void {
         return;
     }
 
-    const day, const part, const example = attrs.?;
+    const day, const part, const example, const file_input = attrs.?;
 
     const example_prefix: []const u8 = if (example) "-example" else "";
+
+    const file_input_name =
+        if (file_input) |f|
+            std.fmt.allocPrint(b.allocator, "{s}", .{ f }) catch unreachable()
+        else
+            std.fmt.allocPrint(b.allocator, "day{s}{s}.txt", .{ day, example_prefix })
+            catch unreachable()
+        ;
 
     const file_content = std.fmt.allocPrint(
         b.allocator,
@@ -73,7 +90,7 @@ pub fn build(b: *std.Build) void {
         \\const mod = @import("./src/day{0s}.zig");
         \\
         \\pub fn main() !void {{
-        \\    const file_path = "./inputs/day{0s}{2s}.txt";
+        \\    const file_path = "./inputs/{2s}";
         \\    
         \\    const gpa = std.heap.page_allocator;
         \\    const content = try utils.read_file(gpa, file_path);
@@ -81,12 +98,13 @@ pub fn build(b: *std.Build) void {
         \\    
         \\    try mod.part{1s}(gpa, content);
         \\}}
-        , .{ day, part, example_prefix }
+        , .{ day, part, file_input_name }
     ) catch {
         @panic("Build failed allocating data!");
     };
 
     defer b.allocator.free(file_content);
+    defer b.allocator.free(file_input_name);
 
     const gen_main_path = "main_generated.zig";
     const file = std.fs.cwd().createFile(gen_main_path, .{ .read = true }) catch {
