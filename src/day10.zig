@@ -445,4 +445,3 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     }
     std.debug.print("tile count: {}\n", .{tile_count});
 }
-
