@@ -17,7 +17,7 @@ fn slice_sum(s: []usize) usize {
     return total;
 }
 
-pub fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn solve(gpa: Allocator, content: []const u8, expansion_size: usize) !void {
     var star_coords: std.ArrayList(Coord) = .empty;
     var line_heights: std.ArrayList(usize) = .empty;
     var col_widths: std.ArrayList(usize) = .empty;
@@ -35,7 +35,7 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
         if (line.len == 0) continue;
 
         if (i == 0) {
-             try col_widths.appendNTimes(gpa, 2, line.len);
+             try col_widths.appendNTimes(gpa, expansion_size, line.len);
         }
 
         var line_is_empty = true;
@@ -44,13 +44,13 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
                 try star_coords.append(gpa, .{ .row = i, .col = j });
                 line_is_empty = false;
 
-                if (col_widths.items[j] == 2) {
+                if (col_widths.items[j] == expansion_size) {
                     col_widths.items[j] = 1;
                 }
             }
         }
 
-        const line_height: usize = if (line_is_empty) 2 else 1;
+        const line_height: usize = if (line_is_empty) expansion_size else 1;
         try line_heights.append(gpa, line_height);
 
         i += 1;
@@ -88,8 +88,10 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     std.debug.print("result = {}\n", .{result});
 }
 
+pub fn part1(gpa: Allocator, content: []const u8) !void {
+    try solve(gpa, content, 2);
+}
+
 pub fn part2(gpa: Allocator, content: []const u8) !void {
-    _ = gpa;
-    _ = content;
-    unreachable();
+    try solve(gpa, content, 1_000_000);
 }
