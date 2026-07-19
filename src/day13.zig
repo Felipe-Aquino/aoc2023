@@ -2,107 +2,69 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-fn compare_rows(pattern: [][]const u8, r1: usize, r2: usize) bool {
-    // std.debug.print("  {}: {s}\n  {}: {s}\n", .{ r1, pattern[r1], r2, pattern[r2] });
-    return std.mem.eql(u8, pattern[r1], pattern[r2]);
-}
-
-fn compare_columns(pattern: [][]const u8, c1: usize, c2: usize) bool {
-    for (0..pattern.len) |i| {
-        // std.debug.print("  {}: {s}\n  {}: {s}\n", .{ r1, pattern[r1], r2, pattern[r2] });
-        if (pattern[i][c1] != pattern[i][c2]) {
-            return false;
+fn compare_rows(pattern: []const []const u8, r1: usize, r2: usize) usize {
+    var count: usize = 0;
+    for (0..pattern[0].len) |i| {
+        if (pattern[r1][i] != pattern[r2][i]) {
+            count += 1;
         }
     }
 
-    return true;
+    return count;
 }
 
-fn perfect_vertical_reflection_count(pattern: [][]const u8) usize {
+fn compare_columns(pattern: []const []const u8, c1: usize, c2: usize) usize {
+    var count: usize = 0;
+    for (0..pattern.len) |i| {
+        if (pattern[i][c1] != pattern[i][c2]) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+fn perfect_vertical_reflection_count(pattern: []const []const u8, smudge_count: usize) usize {
     const row_count = pattern.len;
 
-    var max_row_dist: usize = 0;
-    var max_row_dist_idx: usize = 0;
-
     for (0..row_count - 1) |i| {
-        var match = true;
+        var match: usize = 0;
 
         const n = @min(i + 1, row_count - i - 1);
 
-        if (max_row_dist > n) {
-            continue;
-        }
-
         for (0..n) |k| {
-            if (!compare_rows(pattern, i - k, i + k + 1)) {
-                match = false;
-                break;
-            }
+            match += compare_rows(pattern, i - k, i + k + 1);
         }
 
-        if (match) {
-            max_row_dist = n;
-            max_row_dist_idx = i;
+        if (match == smudge_count) {
+            return i + 1;
         }
-
-        // std.debug.print("i = {}, n = {}, max_row_dist = {}, max_row_dist_idx = {} \n", .{
-        //     i, n,
-        //     max_row_dist,
-        //     max_row_dist_idx,
-        // });
     }
 
-    // std.debug.print("max_row_dist = {}, max_row_dist_idx = {} \n", .{
-    //     max_row_dist,
-    //     max_row_dist_idx,
-    // });
-
-    return if (max_row_dist > 0) (max_row_dist_idx + 1) else 0;
+    return 0;
 }
 
-fn perfect_horizontal_reflection_count(pattern: [][]const u8) usize {
+fn perfect_horizontal_reflection_count(pattern: []const []const u8, smudge_count: usize) usize {
     const col_count = pattern[0].len;
 
-    var max_col_dist: usize = 0;
-    var max_col_dist_idx: usize = 0;
-
     for (0..col_count - 1) |i| {
-        var match = true;
+        var match: usize = 0;
 
         const n = @min(i + 1, col_count - i - 1);
 
-        if (max_col_dist > n) {
-            continue;
-        }
-
         for (0..n) |k| {
-            if (!compare_columns(pattern, i - k, i + k + 1)) {
-                match = false;
-                break;
-            }
+            match += compare_columns(pattern, i - k, i + k + 1);
         }
 
-        if (match) {
-            max_col_dist = n;
-            max_col_dist_idx = i;
+        if (match == smudge_count) {
+            return i + 1;
         }
-
-        // std.debug.print("i = {}, n = {}, max_col_dist = {}, max_col_dist_idx = {} \n", .{
-        //     i, n,
-        //     max_col_dist,
-        //     max_col_dist_idx,
-        // });
     }
 
-    // std.debug.print("max_col_dist = {}, max_col_dist_idx = {} \n", .{
-    //     max_col_dist,
-    //     max_col_dist_idx,
-    // });
-
-    return if (max_col_dist > 0) (max_col_dist_idx + 1) else 0;
+    return 0;
 }
 
-pub fn part1(gpa: Allocator, content: []const u8) !void {
+pub fn solve(gpa: Allocator, content: []const u8, smudge_count: usize) !void {
     var pattern: std.ArrayList([]const u8) = .empty;
     defer pattern.deinit(gpa);
 
@@ -112,8 +74,10 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 
     while (iter.next()) |line| {
         if (line.len == 0) {
-            const vertical_count = perfect_vertical_reflection_count(pattern.items);
-            const horizontal_count = perfect_horizontal_reflection_count(pattern.items);
+            const vertical_count =
+                perfect_vertical_reflection_count(pattern.items, smudge_count);
+            const horizontal_count =
+                perfect_horizontal_reflection_count(pattern.items, smudge_count);
 
             std.debug.print("vertical_count   = {} \n", .{ vertical_count });
             std.debug.print("horizontal_count = {} \n", .{ horizontal_count });
@@ -129,4 +93,12 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     }
 
     std.debug.print("summary total = {}\n", .{ summary_total });
+}
+
+pub fn part1(gpa: Allocator, content: []const u8) !void {
+    try solve(gpa, content, 0);
+}
+
+pub fn part2(gpa: Allocator, content: []const u8) !void {
+    try solve(gpa, content, 1);
 }
