@@ -77,6 +77,13 @@ const Grid = struct {
         return count;
     }
 
+    fn reset(self: Grid) void {
+        for (self.data.items) |*tile| {
+            tile.beam_count = 0;
+            tile.beam_directions = 0;
+        }
+    }
+
     fn push_row(self: *Grid, row: []const u8) !void {
         if (self.nrows != 0) {
             std.debug.assert(row.len == self.ncols);
@@ -158,27 +165,18 @@ const Beam = struct {
     }
 };
 
-pub fn part1(gpa: Allocator, content: []const u8) !void {
-    var grid = Grid.init(gpa);
-    defer grid.deinit();
-
-    var iter = std.mem.splitSequence(u8, content, "\n");
-
-    while (iter.next()) |line| {
-        if (line.len == 0) continue;
-
-        try grid.push_row(line);
-    }
-
-    grid.print();
-
-    var beam_stack: std.ArrayList(Beam) = .empty;
-    defer beam_stack.deinit(gpa);
-
+pub fn energize(
+    grid: *Grid,
+    gpa: Allocator,
+    beam_stack: *std.ArrayList(Beam),
+    start_row: usize,
+    start_col: usize,
+    start_dir: BeamDirection
+) !void {
     var beam = Beam {
-        .row = 0,
-        .col = 0,
-        .direction = .Right,
+        .row = start_row,
+        .col = start_col,
+        .direction = start_dir,
     };
 
     // var iteractions: usize = 0;
@@ -266,8 +264,74 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
             }
         }
     }
+}
+
+pub fn part1(gpa: Allocator, content: []const u8) !void {
+    var grid = Grid.init(gpa);
+    defer grid.deinit();
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+
+        try grid.push_row(line);
+    }
+
+    grid.print();
+
+    var beam_stack: std.ArrayList(Beam) = .empty;
+    defer beam_stack.deinit(gpa);
+
+    try energize(&grid, gpa, &beam_stack, 0, 0, .Right);
 
     grid.print_filled();
 
     std.debug.print("energized count = {}\n", .{ grid.count_energized() });
+}
+
+pub fn part2(gpa: Allocator, content: []const u8) !void {
+    var grid = Grid.init(gpa);
+    defer grid.deinit();
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+
+        try grid.push_row(line);
+    }
+
+    grid.print();
+
+    var beam_stack: std.ArrayList(Beam) = .empty;
+    defer beam_stack.deinit(gpa);
+
+    var max_energized: usize = 0;
+
+    for (0..grid.ncols) |j| {
+        try energize(&grid, gpa, &beam_stack, 0, j, .Down);
+        max_energized = @max(max_energized, grid.count_energized());
+        beam_stack.clearRetainingCapacity();
+        grid.reset();
+
+        try energize(&grid, gpa, &beam_stack, grid.nrows - 1, j, .Up);
+        max_energized = @max(max_energized, grid.count_energized());
+        beam_stack.clearRetainingCapacity();
+        grid.reset();
+    }
+
+    for (0..grid.nrows) |i| {
+        try energize(&grid, gpa, &beam_stack, i, 0, .Right);
+        max_energized = @max(max_energized, grid.count_energized());
+        beam_stack.clearRetainingCapacity();
+        grid.reset();
+
+        try energize(&grid, gpa, &beam_stack, i, grid.ncols - 1, .Left);
+        max_energized = @max(max_energized, grid.count_energized());
+        beam_stack.clearRetainingCapacity();
+        grid.reset();
+    }
+
+    std.debug.print("energized count = {}\n", .{ max_energized });
 }
