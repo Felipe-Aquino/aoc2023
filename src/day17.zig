@@ -186,6 +186,49 @@ const Run = struct {
         // self.output_path();
     }
 
+    fn solve2(self: *Run) void {
+        self.cells[0].distance = 0;
+        self.queue_add(self.cells[0]);
+
+        const target = self.cells[self.cells.len - 1].pos;
+
+        while (self.queue.pop()) |cell| {
+            self.done.append(self.gpa, cell) catch unreachable();
+
+            if (cell.pos.eql(target)) {
+                std.debug.print("min dist: {}\n", .{cell.distance});
+                break;
+            }
+
+            const dirs: [4]Direction = .{.Left, .Right, .Up, .Down};
+            for (dirs) |dir| {
+                if (cell.prev_dir_count < 4 and dir != cell.dir and cell.dir != .None) {
+                    continue;
+                }
+
+                if ((dir == cell.dir and cell.prev_dir_count == 10) or dir == cell.dir.rev()) {
+                    continue;
+                }
+
+                if (cell.pos.next_in_dir(dir, self.num_rows, self.num_cols)) |next_pos| {
+                    const next_idx = self.num_cols * next_pos.row + next_pos.col;
+                    var neigh = self.cells[next_idx];
+
+                    neigh.distance = cell.distance + neigh.weight;
+                    neigh.dir = dir;
+                    neigh.prev_dir_count =
+                        if (dir == cell.dir) cell.prev_dir_count + 1 else 1;
+
+                    self.queue_add(neigh);
+                }
+            }
+
+        }
+
+        std.debug.print("done count: {}\n", .{self.done.items.len});
+        // self.output_path();
+    }
+
     fn output_path(self: *Run) void {
         self.path.clearRetainingCapacity();
 
@@ -332,4 +375,44 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     defer run.deinit();
 
     run.solve();
+}
+
+pub fn part2(gpa: Allocator, content: []const u8) !void {
+    var cells: std.ArrayList(Cell) = .empty;
+    defer cells.deinit(gpa);
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    var line_num: usize = 0;
+    var column_count: usize = 0;
+
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+
+        column_count = line.len;
+
+        for (line, 0..) |v0, i| {
+            const v = @as(usize, @intCast(v0 - '0'));
+            const cell: Cell = .{
+                .pos = .{ .row = line_num, .col = i },
+                .weight = v,
+                .distance = INF,
+                .dir = .None,
+                .prev_dir_count = 0,
+            };
+
+            try cells.append(gpa, cell);
+        }
+
+        line_num += 1;
+        std.debug.print("| {s}\n", .{line});
+    }
+
+    // std.debug.print("{any}\n", .{ cells.items });
+
+    var run = Run.new(gpa, cells.items, line_num, column_count);
+
+    defer run.deinit();
+
+    run.solve2();
 }
