@@ -5,6 +5,14 @@ pub fn read_file(gpa: std.mem.Allocator, path: []const u8) ![]u8 {
     return std.fs.cwd().readFileAlloc(gpa, path, MAX_FILE_SIZE);
 }
 
+pub fn makeIntCast(comptime From: type, comptime To: type) fn (From) To {
+    return struct {
+        pub fn inner(v: From) To { 
+            return @as(From, @intCast(v));
+        }
+    }.inner;
+}
+
 pub fn is_part1() bool {
     return std.os.argv.len < 2 or !std.mem.eql(u8, std.mem.span(std.os.argv[1]), "2");
 }
