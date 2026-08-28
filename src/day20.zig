@@ -21,6 +21,17 @@ const State = enum(u8) {
 const Input = struct {
     name: []const u8,
     pulse_type: PulseType,
+    high_received: usize,
+    low_received: usize,
+
+    fn make(name: []const u8) Input {
+        return .{
+            .name = name,
+            .pulse_type = .Low,
+            .high_received = 0,
+            .low_received = 0,
+        };
+    }
 };
 
 const FlipFlopModule = struct {
@@ -30,7 +41,6 @@ const FlipFlopModule = struct {
 };
 
 const ConjunctionModule = struct {
-    all_high: bool,
     inputs: []Input,
     outputs: []const []const u8,
     last_pulse_type: PulseType,
@@ -39,6 +49,11 @@ const ConjunctionModule = struct {
         for (self.inputs) |*inp| {
             if (std.mem.eql(u8, inp.name, name)) {
                 inp.pulse_type = pt;
+                if (pt == .High) {
+                    inp.high_received += 1;
+                } else {
+                    inp.low_received += 1;
+                }
                 break;
             }
         }
@@ -71,7 +86,6 @@ const Module = union(enum) {
 
     fn make_conjunction(outputs: []const []const u8) Module {
         const cm = ConjunctionModule {
-            .all_high = false,
             .inputs = &.{},
             .outputs = outputs,
             .last_pulse_type = .Low,
@@ -228,7 +242,6 @@ fn push_button(gpa: Allocator, modules: *std.StringHashMap(Module)) !Count {
                     try pulse_list.append(gpa, new_pulse);
                 }
 
-                // conj.all_high = all_high;
                 conj.last_pulse_type = pulse.type_;
                 try modules.put(pulse.destination, .{ .conjunction = conj.* });
             },
@@ -282,6 +295,8 @@ pub fn detect_cycle_and_count(gpa: Allocator, modules: *std.StringHashMap(Module
             break;
         }
     }
+
+    std.debug.print("cycle size = {}\n", .{n});
 
     if (n < num_button_presses) {
         const num_cycles = num_button_presses / n;
@@ -366,7 +381,7 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
             while (iter2.next()) |entry2| {
                 for (entry2.value_ptr.get_outputs()) |out_name| {
                     if (std.mem.eql(u8, name, out_name)) {
-                        const input = Input { .name = entry2.key_ptr.*, .pulse_type = .Low };
+                        const input= Input.make(entry2.key_ptr.*);
                         try inputs.append(arena_allocator, input);
                     }
                 }
@@ -384,8 +399,258 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     }
 
     try detect_cycle_and_count(gpa, &modules, 1000);
+}
 
-    // try push_button(gpa, &modules);
-    // try push_button(gpa, &modules);
-    // try push_button(gpa, &modules);
+const NodeType = enum {
+    FlipFlop,
+    Conjunction,
+    Broadcaster,
+    DeadEnd,
+};
+
+const Node = struct {
+    name: []const u8,
+    inputs: std.ArrayList(struct{*Node, PulseType}),
+    outputs: std.ArrayList(*Node),
+    state: ?State,
+    module: NodeType,
+
+    fn init(self: *Node, allocator: Allocator, name: []const u8, mod: NodeType) !void {
+        self.name = name;
+        self.inputs = try .initCapacity(allocator, 16);
+        self.outputs = try .initCapacity(allocator, 16);
+        self.state = if (mod == .FlipFlop) .Off else null;
+        self.module = mod;
+    }
+};
+
+const Pulse2 = struct {
+    origin: *Node,
+    destination: *Node,
+    type_: PulseType,
+};
+
+const Marker = struct {
+    button_push: usize,
+    pulse_count: usize,
+    total_pulse_count: usize,
+};
+
+fn send_pulse_to_node(
+    gpa: Allocator,
+    broadcaster: *Node,
+    node: *Node,
+    end_node: *Node,
+    button_push_count: usize,
+    total_pulse_count: usize,
+    high_pulse_marker: *std.ArrayList(Marker)
+) !usize {
+    var pulse_list: std.ArrayList(Pulse2) = .empty;
+    defer pulse_list.deinit(gpa);
+
+    {
+        const pulse: Pulse2 = .{ .origin = broadcaster, .destination = node, .type_ = .Low };
+        try pulse_list.append(gpa, pulse);
+    }
+
+    std.debug.assert(pulse_list.items.len > 0);
+
+    // std.debug.print("\n", .{});
+
+    var current_pulse: usize = 0;
+
+    while (current_pulse < pulse_list.items.len) : (current_pulse += 1) {
+        const pulse = pulse_list.items[current_pulse];
+
+        const dest = pulse.destination;
+
+        switch (dest.module) {
+            .FlipFlop => {
+                // std.debug.print("{}, {}\n", .{ff.*, pulse.type_});
+                if (pulse.type_ == .Low) {
+                    const state: State = if (dest.state == .On) .Off else .On;
+                    const pulse_type: PulseType = if (state == .On) .High else .Low;
+
+                    for (dest.outputs.items) |out| {
+                        const new_pulse = Pulse2 {
+                            .origin = dest,
+                            .destination = out,
+                            .type_ = pulse_type,
+                        };
+                        try pulse_list.append(gpa, new_pulse);
+                    }
+
+                    dest.state = state;
+                }
+            },
+            .Conjunction => {
+                var all_high = true;
+
+                for (dest.inputs.items) |*inp| {
+                    if (std.mem.eql(u8, inp[0].name, pulse.origin.name)) {
+                        inp[1] = pulse.type_;
+                    }
+
+                    all_high = all_high and inp[1] == .High;
+                }
+
+                const pulse_type: PulseType = if (all_high) .Low else .High;
+
+                for (dest.outputs.items) |out| {
+                    const new_pulse = Pulse2 {
+                        .origin = dest,
+                        .destination = out,
+                        .type_ = pulse_type,
+                    };
+                    try pulse_list.append(gpa, new_pulse);
+                }
+            },
+            .DeadEnd => {},
+            .Broadcaster => unreachable(),
+        }
+
+        if (pulse.destination == end_node and pulse.type_ == .High) {
+            try high_pulse_marker.append(
+                gpa,
+                .{
+                    .button_push = button_push_count,
+                    .pulse_count = current_pulse + 1,
+                    .total_pulse_count = total_pulse_count + current_pulse + 1,
+                }
+            );
+        }
+    }
+
+    // {
+    //     for (pulse_list.items) |p| {
+    //         std.debug.print("{s}-{c}->{s}, ", .{p.origin.name, @intFromEnum(p.type_), p.destination.name});
+    //     }
+    //     std.debug.print("\n", .{});
+    // }
+    return current_pulse;
+}
+
+pub fn part2(gpa: Allocator, content: []const u8) !void {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    const arena_allocator = arena.allocator();
+    defer arena.deinit();
+
+    var modules: std.StringHashMap(*Node) = .init(gpa);
+    defer modules.deinit();
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+
+        var iter2 = std.mem.splitSequence(u8, line, " -> ");
+
+        const name = iter2.next().?;
+        const module_names = iter2.next().?;
+
+        const module: NodeType = 
+            switch (name[0]) {
+                '%' => .FlipFlop,
+                '&' => .Conjunction,
+                else =>
+                    if (std.mem.eql(u8, name, "broadcaster"))
+                        .Broadcaster
+                    else
+                        .DeadEnd
+            };
+
+        const module_name: []const u8 = 
+            if (std.mem.eql(u8, name, "broadcaster"))
+                name
+            else
+                name[1..];
+
+        var node: *Node = undefined;
+
+        if (modules.get(module_name)) |n| {
+            node = n;
+            node.name = name;
+            node.module = module;
+            node.state = if (module == .FlipFlop) .Off else null;
+        } else {
+            node = try arena_allocator.create(Node);
+            try node.init(arena_allocator, name, module);
+
+            try modules.put(module_name, node);
+        }
+
+        {
+            var out_iter = std.mem.splitSequence(u8, module_names, ", ");
+            while (out_iter.next()) |out_name| {
+                std.debug.print("{s} - on: {s}\n", .{node.name, out_name});
+
+                if (out_name.len == 0) continue;
+                if (modules.get(out_name)) |out| {
+                    try node.outputs.append(arena_allocator, out);
+
+                    try out.inputs.append(arena_allocator, .{ node, .Low });
+                } else {
+                    var out = try arena_allocator.create(Node);
+                    try out.init(arena_allocator, out_name, .DeadEnd);
+
+                    try node.outputs.append(arena_allocator, out);
+                    try out.inputs.append(arena_allocator, .{ node, .Low });
+
+                    try modules.put(out_name, out);
+                }
+            }
+        }
+    }
+
+    var mod_iter = modules.valueIterator();
+
+    while (mod_iter.next()) |n0| {
+        const n = n0.*;
+        std.debug.print("{s} :: {} :: {any}\n", .{n.name, n.module, n.state});
+
+        std.debug.print("  inputs: ", .{});
+        for (n.inputs.items) |inp| {
+            std.debug.print("{s}, ", .{inp[0].name});
+        }
+        std.debug.print("\n", .{});
+
+        std.debug.print("  outputs: ", .{});
+        for (n.outputs.items) |o| {
+            std.debug.print("{s}, ", .{o.name});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    const ql = modules.get("ql").?;
+    const brc = modules.get("broadcaster").?;
+    var high_pulse_marker: std.ArrayList(Marker) = .empty;
+    var result: usize = 1;
+
+    for (brc.outputs.items) |out| {
+        var button_push_count: usize = 0;
+        var total_pulse_count: usize = 0;
+
+        while (button_push_count < 10000) {
+            button_push_count += 1;
+
+            total_pulse_count += try send_pulse_to_node(
+                gpa,
+                brc,
+                out,
+                ql,
+                button_push_count,
+                total_pulse_count,
+                &high_pulse_marker
+            );
+        }
+
+        std.debug.print("{any}\n", .{high_pulse_marker.items});
+
+        const m = high_pulse_marker.items[0];
+
+        result = std.math.lcm(result, m.button_push);
+        high_pulse_marker.clearRetainingCapacity();
+    }
+
+    std.debug.print("total = {}\n", .{result});
 }
