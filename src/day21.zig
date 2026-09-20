@@ -674,24 +674,43 @@ pub fn number_of_plots(
 
             const metric = find_metric(metrics, key);
             const num_iterations =
-                1 + @divFloor(total_steps - metric.first_step_idx, step_diff);
+                1 + @divFloor(total_steps - metric.first_repeat_idx, step_diff);
 
-            // var total_: usize = 0;
-            for (0..num_iterations) |i| {
-                for (0..num_iterations) |j| {
-                    const step_idx = metric.first_step_idx + (i + j) * step_diff;
-                    const repeat_idx = metric.first_repeat_idx + (i + j) * step_diff;
+            const number_of_even_blocks = @divFloor(num_iterations, 2);
+            const number_of_odd_blocks = num_iterations - number_of_even_blocks;
 
-                    plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
-                    // const x = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
-                    // plots_count += x;
-                    // total_ += x;
-                }
+            if ((total_steps - (metric.first_repeat_idx + 1)) % 2 == 0) {
+                plots_count += filling[0] * number_of_odd_blocks * number_of_odd_blocks;
+                plots_count += filling[1] * number_of_even_blocks * (number_of_even_blocks + 1);
+            } else {
+                plots_count += filling[1] * number_of_odd_blocks * number_of_odd_blocks;
+                plots_count += filling[0] * number_of_even_blocks * (number_of_even_blocks + 1);
             }
 
-            // std.debug.print("({},{}): {}\n", .{key[0], key[1], total_});
+
+            // std.debug.print("-- key= {} -- \n", .{ key });
+            // std.debug.print("num_iterations = {}\n", .{ num_iterations });
+            // std.debug.print("remaining_steps = {}\n", .{ remaining_steps });
+            // std.debug.print("number_of_even_blocks = {}\n", .{ number_of_even_blocks });
+            // std.debug.print("number_of_odd_blocks = {}\n", .{ number_of_odd_blocks });
+            // std.debug.print("sequence = {any}\n", .{ metric.sequence });
+            // std.debug.print("first_step_idx = {}\n", .{ metric.first_step_idx });
+            // std.debug.print("first_repeat_idx = {}\n", .{ metric.first_repeat_idx });
+
+            for (0..2) |i| {
+                const k = i + num_iterations;
+                const step_idx = metric.first_step_idx + k * step_diff;
+                const repeat_idx = metric.first_repeat_idx + k * step_diff;
+
+                const count = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                plots_count += count * (k + 1);
+                // plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                // std.debug.print("k = {}, x = {}\n", .{ k, x * (k + 1) });
+            }
         }
     }
+
+    std.debug.print("\ncount = {}\n", .{plots_count});
 
     const Y: isize = 3;
     const positions2: [4]struct{isize, isize} = .{.{0, -1}, .{0, 1}, .{-1, 0}, .{1, 0}};
@@ -820,7 +839,7 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     var current_grid = &extended1;
     var other_grid = &extended2;
 
-    for (0..1000) |_| {
+    for (0..400) |_| {
         grid_step(current_grid.*, other_grid);
 
         count_per_quadrant(other_grid.*, base_dim, &counting);
@@ -845,6 +864,6 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         metrics.deinit(gpa);
     }
 
-    const TOTAL_STEPS: usize = 26501365;
+    const TOTAL_STEPS: usize = 1000;
     number_of_plots(grid, TOTAL_STEPS, base_dim, metrics.items, filling);
 }
