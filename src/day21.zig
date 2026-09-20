@@ -492,6 +492,14 @@ const Counting = struct {
             self.data.put(key, list) catch unreachable();
         }
     }
+
+    fn size(self: Counting, key: Key) usize {
+        if (self.data.getPtr(key)) |list| {
+            return list.items.len;
+        } else {
+            return 0;
+        }
+    }
 };
 
 fn count_per_quadrant(grid: Grid(Tile), dimension: usize, counting: *Counting) void {
@@ -500,6 +508,12 @@ fn count_per_quadrant(grid: Grid(Tile), dimension: usize, counting: *Counting) v
     for (0..dimension) |k| {
         for (0..dimension) |l| {
             var count: usize = 0;
+            const key: Counting.Key = .{k, l};
+
+            // cut-off optmization
+            if (counting.size(key) > 1000) {
+                break;
+            }
 
             for (0..nrows) |i| {
                 const i_2 = i + k * nrows;
@@ -512,7 +526,7 @@ fn count_per_quadrant(grid: Grid(Tile), dimension: usize, counting: *Counting) v
                 }
             }
 
-            counting.put(.{k, l}, count);
+            counting.put(key, count);
         }
     }
 }
@@ -710,7 +724,7 @@ pub fn number_of_plots(
         }
     }
 
-    std.debug.print("\ncount = {}\n", .{plots_count});
+    // std.debug.print("\ncount = {}\n", .{plots_count});
 
     const Y: isize = 3;
     const positions2: [4]struct{isize, isize} = .{.{0, -1}, .{0, 1}, .{-1, 0}, .{1, 0}};
@@ -725,19 +739,37 @@ pub fn number_of_plots(
             };
             const metric = find_metric(metrics, key);
             const num_iterations =
-                1 + @divFloor(total_steps - metric.first_step_idx, step_diff);
+                1 + @divFloor(total_steps - metric.first_repeat_idx, step_diff);
 
-            for (0..num_iterations) |i| {
-                const step_idx = metric.first_step_idx + i * step_diff;
-                const repeat_idx = metric.first_repeat_idx + i * step_diff;
+            var x = (num_iterations / 2) * (filling[0] + filling[1]);
 
-                plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
-                // const x = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
-                // plots_count += x;
-                // total_ += x;
+            if (num_iterations % 2 != 0) {
+                if ((total_steps - (metric.first_repeat_idx + 1)) % 2 == 0) {
+                    x += filling[0];
+                } else {
+                    x += filling[1];
+                }
             }
 
-            // std.debug.print("({},{}): {}\n", .{key[0], key[1], total_});
+            plots_count += x;
+
+            // std.debug.print("-- key= {} -- \n", .{ key });
+            // std.debug.print("num_iterations = {}\n", .{ num_iterations });
+            // std.debug.print("sequence = {any}\n", .{ metric.sequence });
+            // std.debug.print("first_step_idx = {}\n", .{ metric.first_step_idx });
+            // std.debug.print("first_repeat_idx = {}\n", .{ metric.first_repeat_idx });
+            // std.debug.print("x = {}\n", .{ x });
+
+            for (0..2) |i| {
+                const k = i + num_iterations;
+                const step_idx = metric.first_step_idx + k * step_diff;
+                const repeat_idx = metric.first_repeat_idx + k * step_diff;
+
+                const count = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                plots_count += count;
+                // plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                // std.debug.print("k = {}, value = {}\n", .{ k, count });
+            }
         }
     }
 
@@ -839,7 +871,7 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     var current_grid = &extended1;
     var other_grid = &extended2;
 
-    for (0..400) |_| {
+    for (0..1000) |_| {
         grid_step(current_grid.*, other_grid);
 
         count_per_quadrant(other_grid.*, base_dim, &counting);
@@ -864,6 +896,6 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         metrics.deinit(gpa);
     }
 
-    const TOTAL_STEPS: usize = 1000;
+    const TOTAL_STEPS: usize = 26501365;
     number_of_plots(grid, TOTAL_STEPS, base_dim, metrics.items, filling);
 }
