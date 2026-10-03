@@ -44,18 +44,6 @@ fn Grid(comptime T: type) type {
             self.data.deinit(self.allocator);
         }
 
-        // fn print(self: Grid) void {
-        //     for (0..self.nrows) |i| {
-        //         for (0..self.ncols) |j| {
-        //             std.debug.print("{c}", .{ @intFromEnum(self.get(i, j)) });
-        //         }
-
-        //         std.debug.print("\n", .{});
-        //     }
-
-        //     std.debug.print("\n", .{});
-        // }
-
         fn push_row(self: *Self, row: []const u8, transform: fn (u8) T) !void {
             if (self.nrows != 0) {
                 std.debug.assert(row.len == self.ncols);
@@ -254,113 +242,7 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     std.debug.print("total = {}\n", .{total});
 }
 
-fn as_zero(c: u8) u64 {
-    _ = c;
-    return 0;
-}
-
-pub fn part3(gpa: Allocator, content: []const u8) !void {
-    var grid: Grid(Tile) = .init(gpa);
-
-    var set1: CoordSet = .init(gpa);
-    var set2: CoordSet = .init(gpa);
-
-    defer {
-        grid.deinit();
-        set1.deinit();
-        set2.deinit();
-    }
-
-    var iter = std.mem.splitSequence(u8, content, "\n");
-
-    while (iter.next()) |line| {
-        if (line.len == 0) continue;
-
-        try grid.push_row(line, Tile.from_u8);
-    }
-
-    // grid.print();
-
-    for (grid.data.items, 0..) |c, i| {
-        if (c == .Start) {
-            const row: i64 = @intCast(i / grid.nrows);
-            const col: i64 = @intCast(@rem(i, grid.nrows));
-            try set1.put(.{ .row = row, .col = col}, {});
-
-            // std.debug.print("({}, {})\n", .{row, col});
-            break;
-        }
-    }
-
-    const steps: [4]struct{i64, i64} = .{.{1, 0}, .{-1, 0}, .{0, -1}, .{0, 1}};
-
-    // const N = 64;
-    const N = 100;
-    var current_set = &set1;
-    var other_set = &set2;
-
-    for (0..N) |_| {
-        var set_iter = current_set.keyIterator();
-
-        while (set_iter.next()) |coord| {
-            for (steps) |step| {
-                const new_coord: Coord = .{
-                    .row = coord.row + step[0],
-                    .col = coord.col + step[1],
-                };
-                if (grid.get2(new_coord.row, new_coord.col) != .Block) {
-                    try other_set.put(new_coord, {});
-                }
-            }
-        }
-
-        current_set.clearRetainingCapacity();
-
-        const aux = current_set;
-        current_set = other_set;
-        other_set = aux;
-    }
-
-    {
-        var buckets: std.AutoHashMap(Coord, usize) = .init(gpa);
-        defer buckets.deinit();
-
-        var set_iter = current_set.keyIterator();
-
-        while (set_iter.next()) |coord| {
-            // std.debug.print("{any}\n", .{coord});
-            const grid_i = @divFloor(coord.row, @as(i64, @intCast(grid.nrows)));
-            const grid_j = @divFloor(coord.col, @as(i64, @intCast(grid.ncols)));
-            const bucket = Coord { .row = grid_i, .col = grid_j };
-
-            if (buckets.get(bucket)) |v| {
-                try buckets.put(bucket, v + 1);
-            } else {
-                try buckets.put(bucket, 1);
-            }
-        }
-
-        // var bucket_iter = buckets.iterator();
-        // while (bucket_iter.next()) |entry| {
-        //     const coord = entry.key_ptr.*;
-        //     const count = entry.value_ptr.*;
-
-        //     std.debug.print("({},{}): {}\n", .{coord.row, coord.col, count});
-        // }
-    }
-
-    const total: usize = current_set.count();
-    // var set_iter = current_set.keyIterator();
-
-    // while (set_iter.next()) |coord| {
-    //     std.debug.print("{any}\n", .{coord});
-    //     total += 1;
-    // }
-
-    std.debug.print("total = {}\n", .{total});
-}
-
-fn calculate_max_plot_fillings(grid: Grid(Tile)) struct { usize, usize } {
+fn calculate_max_plot_endings(grid: Grid(Tile)) SequenceEnding {
     const num_line_plots1: usize = @divFloor(grid.ncols + 1, 2);
     const num_line_plots2: usize = grid.ncols - num_line_plots1;
 
@@ -543,14 +425,15 @@ const Metric = struct {
     }
 };
 
+const SequenceEnding = struct{ usize, usize };
 const ReadMetricsError = error {
-    FillingNotFound,
+    SeqEndingNotFound,
 };
 
 fn read_metrics(
     gpa: Allocator,
     counting: Counting,
-    filling: *struct{usize,usize}
+    ending: *SequenceEnding
 ) !std.ArrayList(Metric) {
     var metrics: std.ArrayList(Metric) = .empty;
 
@@ -574,17 +457,7 @@ fn read_metrics(
             }
 
             if (first_repeat_idx == null) {
-                // const ok = (v1 == filling[0] and v2 == filling[1]) or 
-                //            (v1 == filling[1] and v2 == filling[0]);
-                const ok = (v1 == filling[0] and v2 == filling[1]);
-                          
-                if (ok) {
-                    // if (v1 == filling[1] and v2 == filling[0]) {
-                    //     const aux = filling[0];
-                    //     filling[0] = filling[1];
-                    //     filling[1] = aux;
-                    // }
-
+                if (v1 == ending[0] and v2 == ending[1]) {
                     first_repeat_idx = i;
                     break;
                 }
@@ -592,16 +465,15 @@ fn read_metrics(
         }
 
         if (first_step_idx == null or first_repeat_idx == null) {
-            std.debug.print("?? {}, {}, {any}\n", .{key, filling, list.items});
-            return ReadMetricsError.FillingNotFound;
-            // continue;
+            std.debug.print("?? {}, {}, {any}\n", .{key, ending, list.items});
+            return ReadMetricsError.SeqEndingNotFound;
         }
 
         var list_slice = try list.toOwnedSlice(gpa);
 
         const seq = seq_slice: {
             const start: usize = @intCast(first_step_idx.?);
-            const end: usize = @intCast(first_repeat_idx.? + 1);
+            const end: usize = @intCast(first_repeat_idx.? + 2);
             break :seq_slice list_slice[start..end];
         };
 
@@ -644,7 +516,7 @@ fn find_metric(metrics: []const Metric, key: Counting.Key) Metric {
 
 fn get_count(
     sequence: []usize,
-    filling: struct{usize, usize},
+    ending: struct{usize, usize},
     total_steps: usize,
     step_idx: usize,
     repeat_idx: usize
@@ -657,7 +529,7 @@ fn get_count(
         } else {
             const idx2 = total_steps - (repeat_idx + 1);
 
-            return if (idx2 % 2 == 0) filling[0] else filling[1];
+            return if (idx2 % 2 == 0) ending[0] else ending[1];
         }
     }
 
@@ -669,7 +541,7 @@ pub fn number_of_plots(
     total_steps: usize,
     dimension: usize,
     metrics: []const Metric,
-    filling: struct{usize, usize}
+    ending: SequenceEnding
 ) void {
     const mid: isize = @intCast(@divFloor(dimension, 2));
 
@@ -694,11 +566,11 @@ pub fn number_of_plots(
             const number_of_odd_blocks = num_iterations - number_of_even_blocks;
 
             if ((total_steps - (metric.first_repeat_idx + 1)) % 2 == 0) {
-                plots_count += filling[0] * number_of_odd_blocks * number_of_odd_blocks;
-                plots_count += filling[1] * number_of_even_blocks * (number_of_even_blocks + 1);
+                plots_count += ending[0] * number_of_odd_blocks * number_of_odd_blocks;
+                plots_count += ending[1] * number_of_even_blocks * (number_of_even_blocks + 1);
             } else {
-                plots_count += filling[1] * number_of_odd_blocks * number_of_odd_blocks;
-                plots_count += filling[0] * number_of_even_blocks * (number_of_even_blocks + 1);
+                plots_count += ending[1] * number_of_odd_blocks * number_of_odd_blocks;
+                plots_count += ending[0] * number_of_even_blocks * (number_of_even_blocks + 1);
             }
 
 
@@ -716,9 +588,9 @@ pub fn number_of_plots(
                 const step_idx = metric.first_step_idx + k * step_diff;
                 const repeat_idx = metric.first_repeat_idx + k * step_diff;
 
-                const count = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                const count = get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
                 plots_count += count * (k + 1);
-                // plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                // plots_count += get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
                 // std.debug.print("k = {}, x = {}\n", .{ k, x * (k + 1) });
             }
         }
@@ -741,13 +613,13 @@ pub fn number_of_plots(
             const num_iterations =
                 1 + @divFloor(total_steps - metric.first_repeat_idx, step_diff);
 
-            var x = (num_iterations / 2) * (filling[0] + filling[1]);
+            var x = (num_iterations / 2) * (ending[0] + ending[1]);
 
             if (num_iterations % 2 != 0) {
                 if ((total_steps - (metric.first_repeat_idx + 1)) % 2 == 0) {
-                    x += filling[0];
+                    x += ending[0];
                 } else {
-                    x += filling[1];
+                    x += ending[1];
                 }
             }
 
@@ -765,9 +637,9 @@ pub fn number_of_plots(
                 const step_idx = metric.first_step_idx + k * step_diff;
                 const repeat_idx = metric.first_repeat_idx + k * step_diff;
 
-                const count = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                const count = get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
                 plots_count += count;
-                // plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+                // plots_count += get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
                 // std.debug.print("k = {}, value = {}\n", .{ k, count });
             }
         }
@@ -797,8 +669,8 @@ pub fn number_of_plots(
             const step_idx = metric.first_step_idx;
             const repeat_idx = metric.first_repeat_idx;
 
-            plots_count += get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
-            // const x = get_count(metric.sequence, filling, total_steps, step_idx, repeat_idx);
+            plots_count += get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
+            // const x = get_count(metric.sequence, ending, total_steps, step_idx, repeat_idx);
             // plots_count += x;
 
             // std.debug.print("({},{}): {}\n", .{key[0], key[1], x});
@@ -883,19 +755,16 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         clear_grid(other_grid);
     }
 
-    var filling = calculate_max_plot_fillings(grid);
+    var ending = calculate_max_plot_endings(grid);
 
-    // std.debug.print("filling = {}\n", .{filling});
-
-    var metrics = try read_metrics(gpa, counting, &filling);
+    var metrics = try read_metrics(gpa, counting, &ending);
     defer {
         for (metrics.items) |*m| {
-            // std.debug.print("({},{}): {any}\n", .{m.key[0], m.key[1], m.sequence});
             m.deinit(gpa);
         }
         metrics.deinit(gpa);
     }
 
     const TOTAL_STEPS: usize = 26501365;
-    number_of_plots(grid, TOTAL_STEPS, base_dim, metrics.items, filling);
+    number_of_plots(grid, TOTAL_STEPS, base_dim, metrics.items, ending);
 }
