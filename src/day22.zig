@@ -75,7 +75,7 @@ const Brick = struct {
     }
 
     fn fall_once(self: Brick) ?Brick {
-        if (self.p2.z == 1) {
+        if (self.p1.z == 1) {
             return null;
         }
 
