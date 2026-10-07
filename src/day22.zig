@@ -213,6 +213,10 @@ fn create_fall_dependencies(gpa: Allocator, bricks: []Brick) !std.ArrayList(Fall
     return dependencies;
 }
 
+fn fall_dep_cmp(_: void, lhs: FallDependency, rhs: FallDependency) bool {
+    return lhs.brick_idx > rhs.brick_idx;
+}
+
 pub fn part1(gpa: Allocator, content: []const u8) !void {
     var bricks: std.ArrayList(Brick) = .empty;
     defer bricks.deinit(gpa);
@@ -250,7 +254,7 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 
     var desintagratable: usize = 0;
     for (dependencies.items) |*d| {
-        // d.print();
+        d.print();
 
         if (d.can_remove) {
             desintagratable += 1;
@@ -259,3 +263,132 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 
     std.debug.print("{} bricks can be disintegrated\n", .{ desintagratable });
 }
+
+const Set = struct {
+    gpa: Allocator,
+    data: std.ArrayList(usize),
+
+    fn init(gpa: Allocator) Set {
+        return .{
+            .gpa = gpa,
+            .data = .empty,
+        };
+    }
+
+    fn deinit(self: *Set) void {
+        self.data.deinit(self.gpa);
+    }
+
+    fn put(self: *Set, value: usize) !void {
+        if (std.mem.indexOfScalar(usize, self.data.items, value) == null) {
+            try self.data.append(self.gpa, value);
+        }
+    }
+
+    fn count(self: Set) usize {
+        return self.data.items.len;
+    }
+
+    fn get(self: Set, at: usize) usize {
+        return self.data.items[at];
+    }
+};
+
+pub fn part2(gpa: Allocator, content: []const u8) !void {
+    var bricks: std.ArrayList(Brick) = .empty;
+    defer bricks.deinit(gpa);
+
+    var iter = std.mem.splitSequence(u8, content, "\n");
+
+    while (iter.next()) |line| {
+        if (line.len == 0) continue;
+        const brick = try Brick.read(line);
+
+        try bricks.append(gpa, brick);
+    }
+
+    std.mem.sort(Brick, bricks.items, {}, brick_z_cmp);
+
+    for (bricks.items) |item| {
+        item.print();
+    }
+
+    // std.debug.print("----------\n", .{});
+    make_bricks_fall(&bricks.items);
+
+    for (bricks.items) |item| {
+        item.print();
+    }
+
+    var dependencies = try create_fall_dependencies(gpa, bricks.items);
+    defer {
+        for (dependencies.items) |*d| {
+            d.supported_by.deinit(gpa);
+        }
+
+        dependencies.deinit(gpa);
+    }
+
+    var chains: []Set = try gpa.alloc(Set, bricks.items.len);
+    defer {
+        for (chains) |*c| {
+            c.deinit();
+        }
+        gpa.free(chains);
+    }
+
+    // std.mem.sort(FallDependency, dependencies.items, {}, fall_dep_cmp);
+    for (0..bricks.items.len) |i| {
+        chains[i] = Set.init(gpa);
+
+        for (dependencies.items) |d| {
+            if (d.supported_by.items.len == 1 and std.mem.indexOfScalar(usize, d.supported_by.items, i) != null) {
+                try chains[i].put(d.brick_idx);
+            }
+        }
+
+        try follow_chain(&chains[i], dependencies.items);
+    }
+
+    var count: usize = 0;
+    for (chains, 0..) |chain, i| {
+        // std.debug.print("| {}: {} -- {any}\n", .{i, chain.data.items.len, chain.data.items});
+        std.debug.print("| {}: {} -- {any}\n", .{i, chain.data.items.len, chain.data.items});
+        count += chain.data.items.len;
+    }
+
+    std.debug.print("count = {}\n", .{count});
+}
+
+fn intersect_count(a: []usize, b: []usize) usize {
+    var count: usize = 0;
+    for (b) |e2| {
+        for (a) |e1| {
+            if (e1 == e2) {
+                count += 1;
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
+fn follow_chain(chain: *Set, dependencies: []FallDependency) !void {
+    var i: usize = 0;
+
+    // std.debug.print("#############\n", .{});
+    while (i < chain.count()) : (i += 1) {
+        // std.debug.print("{any}\n", .{chain.data.items});
+        for (dependencies) |d| {
+            const intersections = intersect_count(d.supported_by.items, chain.data.items);
+            const remaining = d.supported_by.items.len - intersections;
+
+            if (d.supported_by.items.len > 0 and remaining == 0) {
+            // if (std.mem.indexOfScalar(usize, d.supported_by.items, brick_idx)) |_| {
+                try chain.put(d.brick_idx);
+            }
+        }
+    }
+}
+
