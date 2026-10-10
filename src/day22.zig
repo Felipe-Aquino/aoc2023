@@ -2,6 +2,24 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const Ticker = struct {
+    last_time: i64,
+
+    fn init() Ticker {
+        return .{
+            .last_time = std.time.microTimestamp(),
+        };
+    }
+
+    fn tick(self: *Ticker, name: []const u8) void {
+        const time = std.time.microTimestamp();
+        const dt = @as(f64, @floatFromInt(time - self.last_time)) / 1e6;
+        self.last_time = time;
+
+        std.debug.print("time[{s}] = {} s\n", .{ name, dt });
+    }
+};
+
 const Point = struct {
     x: i32,
     y: i32,
@@ -191,7 +209,7 @@ fn create_fall_dependencies(gpa: Allocator, bricks: []Brick) !std.ArrayList(Fall
         for (i+1..sz) |j| {
             const b = bricks[j];
             if (j != i and fallen.collides(b)) {
-                try dependency.supported_by.append(gpa, j);
+                try insert_ord_uniq(usize, gpa, &dependency.supported_by, j);
             }
         }
 
@@ -264,6 +282,21 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
     std.debug.print("{} bricks can be disintegrated\n", .{ desintagratable });
 }
 
+fn insert_ord_uniq(comptime T: type, gpa: Allocator, arr: *std.ArrayList(T), value: T) !void {
+    for (arr.*.items, 0..) |v, i| {
+        if (v == value) {
+            return;
+        }
+
+        if (v > value) {
+            try arr.insert(gpa, i, value);
+            return;
+        }
+    }
+
+    try arr.append(gpa, value);
+}
+
 const Set = struct {
     gpa: Allocator,
     data: std.ArrayList(usize),
@@ -280,9 +313,7 @@ const Set = struct {
     }
 
     fn put(self: *Set, value: usize) !void {
-        if (std.mem.indexOfScalar(usize, self.data.items, value) == null) {
-            try self.data.append(self.gpa, value);
-        }
+        try insert_ord_uniq(usize, self.gpa, &self.data, value);
     }
 
     fn count(self: Set) usize {
@@ -300,6 +331,8 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
     var iter = std.mem.splitSequence(u8, content, "\n");
 
+    var ticker = Ticker.init();
+
     while (iter.next()) |line| {
         if (line.len == 0) continue;
         const brick = try Brick.read(line);
@@ -307,18 +340,25 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         try bricks.append(gpa, brick);
     }
 
+    ticker.tick("read file");
+
     std.mem.sort(Brick, bricks.items, {}, brick_z_cmp);
 
-    for (bricks.items) |item| {
-        item.print();
-    }
+    ticker.tick("sort bricks");
+
+    // for (bricks.items) |item| {
+    //     item.print();
+    // }
+    // ticker.tick("print bricks");
 
     // std.debug.print("----------\n", .{});
     make_bricks_fall(&bricks.items);
 
-    for (bricks.items) |item| {
-        item.print();
-    }
+    ticker.tick("bricks fall");
+    // for (bricks.items) |item| {
+    //     item.print();
+    // }
+    // ticker.tick("print bricks");
 
     var dependencies = try create_fall_dependencies(gpa, bricks.items);
     defer {
@@ -328,6 +368,8 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
         dependencies.deinit(gpa);
     }
+
+    ticker.tick("create dependencies");
 
     var chains: []Set = try gpa.alloc(Set, bricks.items.len);
     defer {
@@ -349,11 +391,12 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
         try follow_chain(&chains[i], dependencies.items);
     }
+    ticker.tick("follow chain");
 
     var count: usize = 0;
-    for (chains, 0..) |chain, i| {
+    // for (chains, 0..) |chain, i| {
+    for (chains) |chain| {
         // std.debug.print("| {}: {} -- {any}\n", .{i, chain.data.items.len, chain.data.items});
-        std.debug.print("| {}: {} -- {any}\n", .{i, chain.data.items.len, chain.data.items});
         count += chain.data.items.len;
     }
 
@@ -362,12 +405,20 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
 fn intersect_count(a: []usize, b: []usize) usize {
     var count: usize = 0;
-    for (b) |e2| {
-        for (a) |e1| {
-            if (e1 == e2) {
-                count += 1;
-                break;
-            }
+    var i: usize = 0;
+    var j: usize = 0;
+
+    while (i < a.len and j < b.len) {
+        const v1 = a[i];
+        const v2 = b[j];
+        if (v1 == v2) {
+            count += 1;
+            i += 1;
+            j += 1;
+        } else if (v1 > v2) {
+            j += 1;
+        } else {
+            i += 1;
         }
     }
 
