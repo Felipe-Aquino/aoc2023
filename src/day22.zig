@@ -2,24 +2,6 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const Ticker = struct {
-    last_time: i64,
-
-    fn init() Ticker {
-        return .{
-            .last_time = std.time.microTimestamp(),
-        };
-    }
-
-    fn tick(self: *Ticker, name: []const u8) void {
-        const time = std.time.microTimestamp();
-        const dt = @as(f64, @floatFromInt(time - self.last_time)) / 1e6;
-        self.last_time = time;
-
-        std.debug.print("time[{s}] = {} s\n", .{ name, dt });
-    }
-};
-
 const Point = struct {
     x: i32,
     y: i32,
@@ -208,7 +190,7 @@ fn create_fall_dependencies(gpa: Allocator, bricks: []Brick) !std.ArrayList(Fall
 
         for (i+1..sz) |j| {
             const b = bricks[j];
-            if (j != i and fallen.collides(b)) {
+            if (fallen.collides(b)) {
                 try insert_ord_uniq(usize, gpa, &dependency.supported_by, j);
             }
         }
@@ -331,8 +313,6 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
     var iter = std.mem.splitSequence(u8, content, "\n");
 
-    var ticker = Ticker.init();
-
     while (iter.next()) |line| {
         if (line.len == 0) continue;
         const brick = try Brick.read(line);
@@ -340,25 +320,18 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
         try bricks.append(gpa, brick);
     }
 
-    ticker.tick("read file");
-
     std.mem.sort(Brick, bricks.items, {}, brick_z_cmp);
-
-    ticker.tick("sort bricks");
 
     // for (bricks.items) |item| {
     //     item.print();
     // }
-    // ticker.tick("print bricks");
 
     // std.debug.print("----------\n", .{});
     make_bricks_fall(&bricks.items);
 
-    ticker.tick("bricks fall");
     // for (bricks.items) |item| {
     //     item.print();
     // }
-    // ticker.tick("print bricks");
 
     var dependencies = try create_fall_dependencies(gpa, bricks.items);
     defer {
@@ -368,8 +341,6 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
         dependencies.deinit(gpa);
     }
-
-    ticker.tick("create dependencies");
 
     var chains: []Set = try gpa.alloc(Set, bricks.items.len);
     defer {
@@ -391,7 +362,6 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
 
         try follow_chain(&chains[i], dependencies.items);
     }
-    ticker.tick("follow chain");
 
     var count: usize = 0;
     // for (chains, 0..) |chain, i| {
