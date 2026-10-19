@@ -12,7 +12,6 @@ const Tile = enum(u8) {
     Left = '<',
     Right = '>',
     Occupied = '0',
-    End = 'E',
 
     fn from_u8(c: u8) Tile {
         return @enumFromInt(c);
@@ -225,22 +224,13 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
         } else {
             current_node = null;
         }
-
-        // if (curr.id == last_node.id) {
-        //     std.debug.print("-------------\n", .{});
-        //     break;
-        // }
     }
 
     {
         var n: *Node = find_node_by_id(completed.items, last_node.id).?;
         n.in_path = true;
 
-        // var max_iters: usize = 200;
-
-        // while (n.id != first_node.id and max_iters > 1) {
         while (n.id != first_node.id) {
-            // std.debug.print("id: {}\n", .{n.id});
             // grid.data.items[n.id] = .Occupied;
 
             for (completed.items) |*n2| {
@@ -250,21 +240,15 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
                     break;
                 }
             }
-
-            // max_iters -= 1;
         }
 
         // grid.data.items[n.id] = .Occupied;
-
-        // grid.data.items[527] = .Occupied;
-        // grid.data.items[448] = .End;
 
 
         n = find_node_by_id(completed.items, last_node.id).?;
         var max_path_distance: i32 = @intCast(@abs(n.distance));
         var count: i32 = 0;
 
-        // std.debug.print("max_path_distance: {}\n", .{max_path_distance});
         while (n.id != first_node.id) {
             count += 1;
 
@@ -287,11 +271,7 @@ pub fn part1(gpa: Allocator, content: []const u8) !void {
 
     // print_tile_grid(grid);
 
-    try output_path("out.html", grid, completed.items);
-
-    // for (completed.items) |n| {
-    //     std.debug.print("{any}\n", .{n});
-    // }
+    // try output_path("out.html", grid, completed.items);
 
     std.debug.print("start: {}\n", .{first_node.id});
     std.debug.print("end: {}\n", .{last_node.id});
