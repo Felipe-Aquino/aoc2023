@@ -466,6 +466,7 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     //
     // x*b - a*y - x1*b - x*b1 + a*y1 + a1*y = a1*y1 - x1*b1 = t1
     // x*b - a*y - x2*b - x*b2 + a*y2 + a2*y = a2*y2 - x1*b2 = t2
+    // x*c - a*z - x2*c - x*c2 + a*z2 + a2*z = a2*z2 - x1*c2 = t2'
     //
     // b*(x2 - x1) + x*(b2 - b1) + a*(y1 - y2) + y*(a1 - a2) = t1 - t2
     // x*(b2 - b1) + y*(a1 - a2) + a*(y1 - y2) + b*(x2 - x1) = t1 - t2
@@ -475,60 +476,56 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     // x*(b4 - b3) + y*(a3 - a4) + a*(y3 - y4) + b*(x4 - x3) = t3 - t4
     // ...
     //
-    // | (b2 - b1) (a1 - a2) (y1 - y2) (x2 - x1) |   |x| = | t1 - t2 |
-    // | (b3 - b2) (a2 - a3) (y2 - y3) (x3 - x2) | * |y|   | t2 - t3 |
-    // | (b4 - b3) (a3 - a4) (y3 - y4) (x4 - x3) |   |a|   | t3 - t4 |
-    // | ...                                     |   |b|   | ...     |
+    // | (b2 - b1)  (a1 - a2)  0          (y1 - y2)  (x2 - x1)  0         |   |x| = | t1 - t2  |
+    // | (c2 - c1)  0          (a1 - a2)  (z1 - z2)  0          (x2 - x1) |   |y|   | t1 - t2' |
+    // | (b3 - b2)  (a2 - a3)  0          (y2 - y3)  (x3 - x2)  0         | * |z|   | t2 - t3  |
+    // | (c3 - c2)  0          (a2 - a3)  (z2 - z3)  0          (x3 - x2) |   |a|   | t2 - t3' |
+    // | (b4 - b3)  (a3 - a4)  0          (y3 - y4)  (x4 - x3)  0         |   |b|   | t3 - t4  |
+    // | (c4 - c3)  0          (a3 - a4)  (z3 - z4)  0          (x4 - x3) |   |c|   | t3 - t4' |
+    // | ...                                                              |         | ...      |
     //
-    //            M                                  x   =  r
+    //            M                                                            x  =  r
 
-    const N = hails.items.len / 2;
-    var M = try Matrix.zeros(gpa, N, 4);
+    const N = hails.items.len;
+    var M = try Matrix.zeros(gpa, N, 6);
     var r = try Matrix.zeros(gpa, N, 1);
-    var M2 = try Matrix.zeros(gpa, N, 4);
-    var r2 = try Matrix.zeros(gpa, N, 1);
 
     defer {
         M.deinit(gpa);
         r.deinit(gpa);
-        M2.deinit(gpa);
-        r2.deinit(gpa);
     }
     
     {
         var k: usize = 0;
         while (k < hails.items.len - 1): (k += 2) {
-            // xyab
             const h1 = hails.items[k];
             const h2 = hails.items[k + 1];
-            const row = k / 2;
+            const row = k;
 
             M.set(row, 0, (h2.velocity[1] - h1.velocity[1]));
             M.set(row, 1, (h1.velocity[0] - h2.velocity[0]));
-            M.set(row, 2, (h1.position[1] - h2.position[1]));
-            M.set(row, 3, (h2.position[0] - h1.position[0]));
+            M.set(row, 3, (h1.position[1] - h2.position[1]));
+            M.set(row, 4, (h2.position[0] - h1.position[0]));
 
             var t1 = h1.velocity[0]*h1.position[1] - h1.position[0]*h1.velocity[1];
             var t2 = h2.velocity[0]*h2.position[1] - h2.position[0]*h2.velocity[1];
-
             r.set(row, 0, t1 - t2);
 
-            // xzac
-            M2.set(row, 0, (h2.velocity[2] - h1.velocity[2]));
-            M2.set(row, 1, (h1.velocity[0] - h2.velocity[0]));
-            M2.set(row, 2, (h1.position[2] - h2.position[2]));
-            M2.set(row, 3, (h2.position[0] - h1.position[0]));
+            M.set(row + 1, 0, (h2.velocity[2] - h1.velocity[2]));
+            M.set(row + 1, 2, (h1.velocity[0] - h2.velocity[0]));
+            M.set(row + 1, 3, (h1.position[2] - h2.position[2]));
+            M.set(row + 1, 5, (h2.position[0] - h1.position[0]));
 
             t1 = h1.velocity[0]*h1.position[2] - h1.position[0]*h1.velocity[2];
             t2 = h2.velocity[0]*h2.position[2] - h2.position[0]*h2.velocity[2];
 
-            r2.set(row, 0, t1 - t2);
+            r.set(row + 1, 0, t1 - t2);
         }
     }
     
     var Mt = try M.transpose(gpa);
-    var Mpseudo = try Mt.mult(M, gpa);
-    var rpseudo = try Mt.mult(r, gpa);
+    const Mpseudo = try Mt.mult(M, gpa);
+    const rpseudo = try Mt.mult(r, gpa);
 
     // Mpseudo.print();
     // rpseudo.print();
@@ -537,29 +534,15 @@ pub fn part2(gpa: Allocator, content: []const u8) !void {
     // (M'*M)*x = (M'b)
     // x' = inv(M'*M) * (M'b)
     //
-    const xyab = try Mpseudo.solveAxb(rpseudo, gpa);
-    defer xyab.deinit(gpa);
+    const xyzabc = try Mpseudo.solveAxb(rpseudo, gpa);
+    defer xyzabc.deinit(gpa);
 
     std.debug.print("xyab =\n", .{});
-    xyab.print();
+    xyzabc.print();
 
-    Mt.deinit(gpa);
-    Mpseudo.deinit(gpa);
-    rpseudo.deinit(gpa);
-
-    Mt = try M2.transpose(gpa);
-    Mpseudo = try Mt.mult(M2, gpa);
-    rpseudo = try Mt.mult(r2, gpa);
-
-    const xzac = try Mpseudo.solveAxb(rpseudo, gpa);
-    defer xzac.deinit(gpa);
-
-    std.debug.print("xzac =\n", .{});
-    xzac.print();
-
-    const x = @round(xyab.get(0, 0));
-    const y = @round(xyab.get(1, 0));
-    const z = @round(xzac.get(1, 0));
+    const x = @round(xyzabc.get(0, 0));
+    const y = @round(xyzabc.get(1, 0));
+    const z = @round(xyzabc.get(2, 0));
 
     std.debug.print("total = {} + {} + {} = {}\n", .{x, y, z, x + y + z});
 }
